@@ -1,0 +1,23 @@
+[Unit]
+Description=Raspberry Pi CPU metrics sender to InfluxDB
+After=network-online.target docker.service
+Wants=network-online.target docker.service
+
+[Service]
+Type=simple
+
+User=<USER>
+
+WorkingDirectory=/home/<USER>/raspi_server
+
+ExecStart=/home/<USER>/raspi_server/venv/bin/python -u /home/<USER>/raspi_server/src/cpu_to_influx.py
+
+# Restart service on crash or failure
+Restart=always
+RestartSec=5
+
+# Ensure Python prints to journal immediately
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target
