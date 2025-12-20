@@ -7,3 +7,13 @@ venv/
 env.*
 docker/env.*
 influx.env
+
+# Node
+node_modules/
+dist/
+
+# Env
+.env
+
+# Logs
+npm-debug.log*
