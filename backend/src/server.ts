@@ -1,8 +1,10 @@
+import "dotenv/config";
 import Fastify from "fastify";
 import jwt from "@fastify/jwt";
 import cors from "@fastify/cors";
 import http from "http";
 import WebSocket, { WebSocketServer } from "ws";
+import { metricsRoutes } from "./routes/metrics";
 
 // ---- Types ----
 type Telemetry = {
@@ -34,13 +36,16 @@ async function main() {
     },
   });
 
-  // Plugins
+  // ✅ Plugins + routes (MUST be before listen)
   await app.register(cors, { origin: true });
+
   await app.register(jwt, {
     secret: process.env.JWT_SECRET ?? "dev-secret-change-me",
   });
 
-  // Auth guard (JWT)
+  await app.register(metricsRoutes);
+
+  // ✅ Auth guard (JWT)
   app.decorate("auth", async (req: any, reply: any) => {
     try {
       await req.jwtVerify();
@@ -108,7 +113,12 @@ async function main() {
 
     const t = req.body as Telemetry;
 
-    if (!t?.deviceId || !t?.ts || typeof t.metrics !== "object" || t.metrics === null) {
+    if (
+      !t?.deviceId ||
+      !t?.ts ||
+      typeof t.metrics !== "object" ||
+      t.metrics === null
+    ) {
       return reply.code(400).send({ error: "bad_payload" });
     }
 
@@ -132,16 +142,18 @@ async function main() {
     }
   );
 
-  // Important: ensure routes/plugins are ready before we attach WS.
+  // ✅ Ensure routes/plugins are ready before we attach WS.
   await app.ready();
 
-  // Attach WebSocket to the SAME underlying server that Fastify uses.
+  // ✅ Attach WebSocket to the SAME underlying server that Fastify uses.
   const wss = new WebSocketServer({ server: app.server, path: "/ws" });
 
   wss.on("connection", (ws) => {
     wsState.set(ws, { subscribedDeviceId: null });
 
-    ws.send(JSON.stringify({ type: "hello", message: "send subscribe {type, deviceId}" }));
+    ws.send(
+      JSON.stringify({ type: "hello", message: "send subscribe {type, deviceId}" })
+    );
 
     ws.on("message", (data) => {
       try {
@@ -173,10 +185,11 @@ async function main() {
     });
   });
 
-  // Start (Fastify handles listening; WS piggybacks on the same server)
+  // ✅ ONE start (listen only once)
   const port = Number(process.env.PORT ?? 3001);
   await app.listen({ port, host: "0.0.0.0" });
 
+  app.log.info(`HTTP listening on http://0.0.0.0:${port}`);
   app.log.info(`WS listening on ws://0.0.0.0:${port}/ws`);
 }
 
