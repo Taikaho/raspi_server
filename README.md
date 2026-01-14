@@ -12,6 +12,7 @@ The project emphasizes understanding data flow, reliability and infrastructure-l
 - Data visualization with Grafana
 - Secure remote access using Tailscale
 - Designed to run on a Raspberry Pi (Linux)
+- Script-based data collection and processing
 
 ## Technologies
 - Node.js / TypeScript
