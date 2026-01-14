@@ -27,8 +27,6 @@ declare module "fastify" {
 const latestByDevice = new Map<string, Telemetry>();
 
 async function main() {
-  // Create a custom HTTP server through Fastify's serverFactory.
-  // This is the supported way to share the same port with WebSocket.
   const app = Fastify({
     logger: true,
     serverFactory: (handler) => {
@@ -36,7 +34,6 @@ async function main() {
     },
   });
 
-  // ✅ Plugins + routes (MUST be before listen)
   await app.register(cors, { origin: true });
 
   await app.register(jwt, {
@@ -45,7 +42,6 @@ async function main() {
 
   await app.register(metricsRoutes);
 
-  // ✅ Auth guard (JWT)
   app.decorate("auth", async (req: any, reply: any) => {
     try {
       await req.jwtVerify();
