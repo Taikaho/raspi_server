@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Dict, Any
 
 from influxdb_client import InfluxDBClient, Point, WriteOptions
-from ruuvitag_sensor.ruuvi import RuuviTagSensor  # type: ignore
+from ruuvitag_sensor.ruuvi import RuuviTagSensor  
 
 INF_ENV_PATH = Path(__file__).resolve().parents[1] / "influx.env"
 
@@ -37,27 +37,9 @@ def load_influx_config(path: Path) -> Dict[str, str]:
 
 
 def ruuvi_data_to_point(mac: str, data: Dict[str, Any]) -> Point:
-    """
-    Muuntaa RuuviTag-datan InfluxDB Point-olioksi.
-
-    data näyttää esim. tältä:
-    {
-      'data_format': 5,
-      'humidity': 47.62,
-      'temperature': 23.58,
-      'pressure': 1023.68,
-      'acceleration': 993.23,
-      'acceleration_x': -48,
-      'acceleration_y': -12,
-      'acceleration_z': 992,
-      'tx_power': 4,
-      'battery': 2197,
-      'movement_counter': 0,
-      'measurement_sequence_number': 88,
-      'mac': 'd2a36ec8e025',
-      'rssi': -80
-    }
-    """
+    
+    # Muuntaa RuuviTag-datan InfluxDB Point-olioksi.
+    
     mac_upper = mac.upper()
     location = RUUVI_TAGS.get(mac_upper, "unknown")
 
@@ -67,7 +49,7 @@ def ruuvi_data_to_point(mac: str, data: Dict[str, Any]) -> Point:
         .tag("location", location)
     )
 
-    # Lisätään kiinnostavat kentät, jos löytyvät
+    # Lisätään kiinnostavat kentät
     for field in [
         "temperature",
         "humidity",
@@ -101,7 +83,6 @@ async def ruuvi_loop(write_api, bucket: str, org: str) -> None:
 
         mac_upper = mac.upper()
         if mac_upper not in RUUVI_TAGS:
-            # varmistetaan, että vain meidän tagit käsitellään
             continue
 
         # Muodosta Influx-piste ja kirjoita
