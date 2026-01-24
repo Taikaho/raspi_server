@@ -14,19 +14,19 @@ const DEFAULT_MACS = [
  */
 export async function metricsRoutes(app: FastifyInstance) {
 
-// Latest metrics path
-  app.get("/api/metrics/latest", async (req, reply) => {
-    const q = req.query as { mac?: string };
+app.get("/api/metrics/latest", async (req, reply) => {
+  const q = req.query as { mac?: string };
 
-    const macs =
-      q.mac?.split(",").map((m) => m.trim().toUpperCase()) ??
-      DEFAULT_MACS;
+  const macs =
+    q.mac?.split(",").map((m) => m.trim().toUpperCase()) ??
+    DEFAULT_MACS;
 
-    const flux = `
+  // Latest metrics path
+  const flux = `
 macs = ${JSON.stringify(macs)}
 
 from(bucket: "${bucket}")
-  |> range(start: -7d)
+  |> range(start: -2h)
   |> filter(fn: (r) => r._measurement == "ruuvi_measurement")
   |> filter(fn: (r) =>
     r._field == "temperature" or
@@ -38,40 +38,52 @@ from(bucket: "${bucket}")
   |> filter(fn: (r) => contains(value: r.mac, set: macs))
   |> group(columns: ["mac", "_field"])
   |> last()
-  |> pivot(
-    rowKey: ["mac"],
-    columnKey: ["_field"],
-    valueColumn: "_value"
-  )
-  |> keep(columns: ["mac", "_time", "temperature", "humidity", "pressure", "battery", "rssi"])
+  |> keep(columns: ["_time", "mac", "_field", "_value"])
 `;
 
-    const queryApi = influx.getQueryApi(influxOrg);
-    const rows: any[] = [];
+  const queryApi = influx.getQueryApi(influxOrg);
+  const rows: any[] = [];
 
-    await new Promise<void>((resolve, reject) => {
-      queryApi.queryRows(flux, {
-        next: (row, meta) => rows.push(meta.toObject(row)),
-        error: reject,
-        complete: resolve,
-      });
-    });
-
-    const data = rows.map((r) => ({
-      mac: r.mac,
-      time: r._time,
-      temperature: r.temperature ?? null,
-      humidity: r.humidity ?? null,
-      pressure: r.pressure ?? null,
-      battery: r.battery ?? null, // mV
-      rssi: r.rssi ?? null,
-    }));
-
-    return reply.send({
-      count: data.length,
-      data,
+  await new Promise<void>((resolve, reject) => {
+    queryApi.queryRows(flux, {
+      next: (row, meta) => rows.push(meta.toObject(row)),
+      error: reject,
+      complete: resolve,
     });
   });
+
+
+  const byMac: Record<string, any> = {};
+
+  for (const r of rows) {
+    const mac = (r.mac ?? "").toUpperCase();
+    if (!mac) continue;
+
+    if (!byMac[mac]) {
+      byMac[mac] = { mac, time: r._time };
+    }
+
+    // päivitä time “uusimpaan” jos tulee eri fieldiltä eri aikaan
+    if (r._time && (!byMac[mac].time || r._time > byMac[mac].time)) {
+      byMac[mac].time = r._time;
+    }
+
+    byMac[mac][r._field] = r._value;
+  }
+
+  const data = Object.values(byMac).map((x: any) => ({
+    mac: x.mac,
+    time: x.time ?? null,
+    temperature: x.temperature ?? null,
+    humidity: x.humidity ?? null,
+    pressure: x.pressure ?? null,
+    battery: x.battery ?? null,
+    rssi: x.rssi ?? null,
+  }));
+
+  return reply.send({ count: data.length, data });
+});
+
 
 //History metrics path
   app.get("/api/metrics/history", async (req, reply) => {
@@ -116,7 +128,7 @@ from(bucket: "${bucket}")
       });
     });
 
-    const points = rows.map((r) => ({
+   const points = rows.map((r) => ({
       time: r._time,
       value: r._value,
       mac: r.mac ?? null,
@@ -133,3 +145,4 @@ from(bucket: "${bucket}")
     });
   });
 }
+
