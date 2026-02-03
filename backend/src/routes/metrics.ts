@@ -3,15 +3,15 @@ import { influx, influxOrg } from "../influx";
 
 const bucket = process.env.INFLUX_BUCKET!;
 
-// RuuviTag MACit (voit myöhemmin siirtää konffiin)
+// RuuviTag MACit 
 const DEFAULT_MACS = [
-  "D5:FD:8F:58:75:FB", // inside
-  "C2:75:55:EE:92:FE", // outside
+  "D5:FD:8F:58:75:FB", // sisä
+  "C2:75:55:EE:92:FE", // ulko
 ];
 
-/**
- * /api/metrics/*
- */
+
+ // /api/metrics/*
+ 
 export async function metricsRoutes(app: FastifyInstance) {
 
 app.get("/api/metrics/latest", async (req, reply) => {
@@ -21,7 +21,7 @@ app.get("/api/metrics/latest", async (req, reply) => {
     q.mac?.split(",").map((m) => m.trim().toUpperCase()) ??
     DEFAULT_MACS;
 
-  // Latest metrics path
+
   const flux = `
 macs = ${JSON.stringify(macs)}
 
@@ -85,7 +85,6 @@ from(bucket: "${bucket}")
 });
 
 
-//History metrics path
   app.get("/api/metrics/history", async (req, reply) => {
     const q = req.query as {
       mac?: string;
