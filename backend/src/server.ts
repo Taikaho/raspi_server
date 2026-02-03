@@ -6,9 +6,9 @@ import http from "http";
 import WebSocket, { WebSocketServer } from "ws";
 import { metricsRoutes } from "./routes/metrics";
 
-// ---- Types ----
+
 type Telemetry = {
-  ts: string; // ISO time string
+  ts: string;
   deviceId: string;
   metrics: Record<string, number>;
 };
@@ -23,7 +23,7 @@ declare module "fastify" {
   }
 }
 
-// ---- In-memory store (MVP) ----
+
 const latestByDevice = new Map<string, Telemetry>();
 
 async function main() {
@@ -50,14 +50,14 @@ async function main() {
     }
   });
 
-  // ---- WebSocket: subscribers per deviceId ----
+  // Websocket
   const subscribers = new Map<string, Set<WebSocket>>();
   const wsState = new WeakMap<WebSocket, WsClientState>();
 
   function subscribe(ws: WebSocket, deviceId: string) {
     const state = wsState.get(ws) ?? { subscribedDeviceId: null };
 
-    // Unsubscribe previous
+    // Unsubscribe
     if (state.subscribedDeviceId) {
       subscribers.get(state.subscribedDeviceId)?.delete(ws);
     }
@@ -83,10 +83,10 @@ async function main() {
     }
   }
 
-  // ---- Routes ----
+  
   app.get("/health", async () => ({ ok: true }));
 
-  // Login (MVP: hardcoded user)
+
   app.post("/api/auth/login", async (req, reply) => {
     const body = req.body as { username?: string; password?: string };
 
@@ -100,7 +100,7 @@ async function main() {
     return reply.code(401).send({ error: "invalid_credentials" });
   });
 
-  // Device ingest (protected by X-Device-Token)
+
   app.post("/api/ingest/telemetry", async (req, reply) => {
     const deviceToken = req.headers["x-device-token"];
     if (deviceToken !== (process.env.DEVICE_TOKEN ?? "dev-device-token")) {
@@ -120,13 +120,13 @@ async function main() {
 
     latestByDevice.set(t.deviceId, t);
 
-    // Push realtime update to WebSocket subscribers
+
     broadcastTelemetry(t);
 
     return reply.send({ ok: true });
   });
 
-  // Latest telemetry (JWT protected)
+
   app.get(
     "/api/telemetry/:deviceId/latest",
     { preHandler: app.auth },
@@ -138,10 +138,9 @@ async function main() {
     }
   );
 
-  // ✅ Ensure routes/plugins are ready before we attach WS.
+
   await app.ready();
 
-  // ✅ Attach WebSocket to the SAME underlying server that Fastify uses.
   const wss = new WebSocketServer({ server: app.server, path: "/ws" });
 
   wss.on("connection", (ws) => {
@@ -159,7 +158,6 @@ async function main() {
           subscribe(ws, msg.deviceId);
           ws.send(JSON.stringify({ type: "subscribed", deviceId: msg.deviceId }));
 
-          // Optional: send latest immediately if we have it
           const latest = latestByDevice.get(msg.deviceId);
           if (latest) ws.send(JSON.stringify({ type: "telemetry", data: latest }));
 
@@ -181,7 +179,6 @@ async function main() {
     });
   });
 
-  // ✅ ONE start (listen only once)
   const port = Number(process.env.PORT ?? 3001);
   await app.listen({ port, host: "0.0.0.0" });
 
